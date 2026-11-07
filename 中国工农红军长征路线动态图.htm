@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国工农红军长征路线动态图（1934—1936）· 交互式 3D 地图</title>
+
+<!-- ================================================================
+     ★★★ 发给学生前，只需要改【下面这一处】★★★
+     ----------------------------------------------------------------
+     把下面 LCZ_CONFIG 里两个引号中间的空位，分别换成你自己的高德地图
+     Key 和安全密钥（各是一串 32 位字母数字），保存，就配置好了。
+     学生双击打开直接出地图，不用填任何东西、不用装任何软件。
+
+     · 申请入口：https://lbs.amap.com → 控制台 → 应用管理 → 我的应用
+       → 创建新应用 → 添加 Key（服务平台必须选 Web端(JS API)）
+     · Key 和 安全密钥 在创建 Key 时一起给出，两个都要填，缺一不可。
+     · 怎么确认填对了：双击打开本文件，地图能显示就是对的。
+     · 安全提醒：Key 写在文件里，拿到这份文件的人按 F12 就能看到。
+       建议给这个页面单独申请一个"教学专用 Key"，不要和其他项目共用。
+     ================================================================ -->
+<script>
+  /* ★ 把下面两个引号里，分别换成你的 Key 和安全密钥（只改这两行）★ */
+  window.LCZ_CONFIG = {
+    key:  "ab3bfe4f2f82220fe2a6a3d7574228dd",   /* ← 你的高德 Key */
+    code: "15caada1710fe3fae0714424b322eaa0"    /* ← 你的安全密钥 securityJsCode */
+  };
+</script>
+
+<style>
+  /* ---------- 全局 ---------- */
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
+
+  /* 地图容器必须给固定高度，否则地图不显示 */
+  #container { width: 100%; height: 100vh; }
+
+  /* ---------- 左侧面板 ---------- */
+  #panel {
+    position: absolute; left: 16px; top: 16px; width: 340px;
+    max-height: calc(100vh - 32px); overflow-y: auto;
+    background: rgba(255, 251, 246, .96); border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.25); padding: 14px 16px;
+    z-index: 200; font-size: 13px; color: #4a2c1a;
+  }
+  #panel h1 { font-size: 17px; margin: 2px 0 4px; color: #a11d22; }
+  #panel .sub { font-size: 12px; color: #8a6a55; margin-bottom: 8px; }
+  #panel .poem { background: #fff3e8; border-left: 3px solid #c0392b;
+    padding: 6px 8px; border-radius: 4px; font-size: 12px; line-height: 1.7;
+    color: #7a4a2b; margin-bottom: 10px; }
+
+  /* ---------- 播放控制区 ---------- */
+  #ctrl { background: #fff6e5; border: 1px solid #f0d9b5; border-radius: 8px;
+    padding: 9px 10px; margin-bottom: 10px; }
+  #ctrl .row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .force-btn { flex: 1; padding: 6px 0; font-size: 12px; cursor: pointer;
+    border: 1px solid #ddd; border-radius: 6px; background: #fff; color: #666; }
+  .force-btn.on { color: #fff; border-color: transparent; }
+  #ctrl .fr-hint { font-size: 11px; color: #9a8578; line-height: 1.55; margin: 0 0 7px; }
+  #ctrl .fr-hint b { color: #a11d22; }
+  #ctrl button.act { flex: 0 0 72px; padding: 6px 0; font-size: 12px; cursor: pointer;
+    border: none; border-radius: 6px; background: #c0392b; color: #fff; }
+  #ctrl button.act:hover { background: #a11d22; }
+  #ctrl select { flex: 0 0 78px; padding: 5px 4px; font-size: 12px;
+    border: 1px solid #ddd; border-radius: 6px; background: #fff; color: #666; }
+  #timeLabel { font-size: 14px; font-weight: bold; color: #a11d22; }
+  #nowEvent { font-size: 12px; color: #8a6a55; min-height: 17px; margin: 2px 0 4px; line-height: 1.5; }
+  #slider { width: 100%; }
+
+  /* ---------- 时间轴列表 ---------- */
+  .node-item { padding: 5px 8px; border-radius: 6px; cursor: pointer;
+    line-height: 1.5; transition: background .15s; }
+  .node-item:hover { background: #ffe3d0; }
+  .node-item b { color: #a11d22; }
+  .node-item .t { color: #999; font-size: 12px; margin-left: 4px; }
+  .node-item.wait { opacity: .35; }                 /* 时间轴还没走到 */
+  .node-item.now { background: #ffe3d0; box-shadow: inset 3px 0 0 #c0392b; }
+  .node-item .badge { display: inline-block; font-size: 11px; padding: 0 5px;
+    border-radius: 8px; color: #fff; margin-right: 4px; vertical-align: 1px; }
+
+  /* ---------- 运行状态 ---------- */
+  #status { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2cfc0;
+    font-size: 11px; line-height: 1.7; color: #9a8578; }
+  #status .ok { color: #4b7a3a; }
+  #status .bad { color: #c0392b; font-weight: bold; }
+
+  /* ---------- 右上角按钮 ---------- */
+  #toolbar { position: absolute; right: 16px; top: 16px; z-index: 200; display: flex; gap: 8px; }
+  #toolbar button {
+    background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    padding: 7px 12px; font-size: 13px; cursor: pointer; color: #555;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  }
+  #toolbar button:hover { background: #f6f6f6; }
+  #toolbar button.active { background: #c0392b; color: #fff; border-color: #c0392b; }
+
+  /* ---------- 轻提示条（切换图层时提示一下，不弹窗打断课堂） ---------- */
+  #toast {
+    position: absolute; left: 50%; bottom: 84px; z-index: 400;
+    transform: translateX(-50%) translateY(10px);
+    max-width: 70vw; padding: 9px 16px; border-radius: 20px; text-align: center;
+    background: rgba(40, 24, 15, .88); color: #fff; font-size: 13px; line-height: 1.5;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3); opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Key 弹窗里的"内核版本"选项 ---------- */
+  #keyBox .chk { display: flex; gap: 6px; align-items: flex-start;
+    margin: 8px 0 2px; font-size: 12px; line-height: 1.55; color: #6b5a4d; cursor: pointer; }
+  #keyBox .chk input { margin-top: 2px; flex: 0 0 auto; }
+
+  /* ---------- 图例 ---------- */
+  #legend {
+    position: absolute; right: 16px; bottom: 24px; z-index: 200;
+    background: rgba(255,251,246,.95); border-radius: 8px; padding: 10px 14px;
+    font-size: 12px; color: #4a2c1a; box-shadow: 0 2px 10px rgba(0,0,0,.2); line-height: 1.9;
+  }
+  .lg-line { display: inline-block; width: 34px; height: 0; vertical-align: middle; margin-right: 6px; }
+  .lg-dot  { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+             border: 2px solid #fff; box-shadow: 0 0 3px #999;
+             vertical-align: middle; margin-right: 8px; }
+  #legend .note { font-size: 11px; color: #9a8578; }
+
+  /* ---------- 信息窗体 ---------- */
+  .iw-box { font-family: "Microsoft YaHei", sans-serif; color: #333; width: 300px; }
+  .iw-box h3 { margin: 0 0 4px; color: #a11d22; font-size: 15px; }
+  .iw-box .time { font-size: 12px; color: #b26a00; margin-bottom: 6px; font-weight: bold; }
+  .iw-box .fact { font-size: 13px; line-height: 1.75; }
+  .iw-box .story { margin-top: 8px; background: #fff6e5; border: 1px dashed #e0a83c;
+    border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.75; }
+  .iw-box .story b { color: #b26a00; }
+
+  /* ---------- 页脚 ---------- */
+  #footer { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+    z-index: 200; font-size: 11px; color: rgba(0,0,0,.55);
+    background: rgba(255,255,255,.7); padding: 2px 10px; border-radius: 10px; }
+
+  /* 地图上的节点图标 */
+  .node-marker { width: 20px; height: 20px; border-radius: 50%;
+    border: 3px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,.5); cursor: pointer; }
+
+  /* 地图上的地名标注：用 margin-left 推到节点右侧，正好避开圆点 */
+  .node-label { white-space: nowrap; margin-left: 12px;
+    font-size: 11px; line-height: 16px; color: #3a2418; padding: 0 4px;
+    background: rgba(255,255,255,.88); border: 1px solid rgba(0,0,0,.12);
+    border-left: 3px solid #c0392b; border-radius: 3px; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25); font-family: "Microsoft YaHei","PingFang SC",sans-serif; }
+  .node-label:hover { background: #fff; border-color: #c0392b; }
+  .node-flag  { font-size: 20px; cursor: pointer; text-shadow: 0 0 3px #fff; }
+  .head-dot { position: relative; width: 14px; height: 14px; border-radius: 50%;
+    border: 3px solid #fff; box-shadow: 0 0 8px rgba(0,0,0,.6); }
+  /* 线头呼吸光圈：课堂上远远就能看到"队伍现在走到哪" */
+  .head-dot::after { content: ''; position: absolute; left: -8px; top: -8px; right: -8px; bottom: -8px;
+    border-radius: 50%; border: 2px solid rgba(255,255,255,.75);
+    animation: headPulse 1.8s ease-out infinite; }
+  @keyframes headPulse {
+    0%   { transform: scale(.55); opacity: .9; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .head-dot::after { animation: none; } }
+
+  /* ---------- 面板折叠（投影上课时可收起侧栏，地图画面更完整） ---------- */
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  #btnFold { flex: 0 0 auto; border: 1px solid #e2cfc0; background: #fff; color: #a11d22;
+    border-radius: 6px; width: 26px; height: 24px; line-height: 1; cursor: pointer; font-size: 13px; }
+  #btnFold:hover { background: #ffe3d0; }
+  #panel.folded { width: auto; padding-bottom: 10px; }
+  #panel.folded > :not(.panel-head) { display: none; }
+
+  /* ---------- 小屏适配（手机/平板竖屏） ---------- */
+  @media (max-width: 720px) {
+    #panel { left: 8px; top: 8px; width: calc(100vw - 16px); box-sizing: border-box;
+      max-height: 52vh; }
+    #toolbar { right: 8px; top: auto; bottom: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    #toolbar button { padding: 6px 9px; font-size: 12px; }
+    #legend { right: 8px; bottom: 54px; font-size: 11px; padding: 8px 10px; }
+    #footer { display: none; }
+  }
+
+  /* ---------- Key 配置弹窗 ---------- */
+  #keyMask { position: fixed; inset: 0; background: rgba(28,18,12,.55);
+    z-index: 999; display: none; align-items: center; justify-content: center; }
+  #keyMask.show { display: flex; }
+  #keyBox { width: 460px; max-width: calc(100vw - 40px); background: #fffdfb;
+    border-radius: 12px; padding: 22px 24px; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    color: #4a2c1a; font-size: 13px; line-height: 1.7; }
+  #keyBox h2 { margin: 0 0 6px; font-size: 17px; color: #a11d22; }
+  #keyBox .tip { font-size: 12px; color: #8a6a55; background: #fff6e5;
+    border-left: 3px solid #e0a83c; padding: 7px 9px; border-radius: 4px; margin: 8px 0 12px; }
+  #keyBox label { display: block; font-weight: bold; margin: 10px 0 3px; font-size: 13px; }
+  #keyBox input { width: 100%; box-sizing: border-box; padding: 8px 10px;
+    border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  #keyBox input:focus { outline: none; border-color: #c0392b; }
+  #keyBox .err { color: #c0392b; font-size: 12px; margin-top: 8px; min-height: 16px; }
+  #keyBox .err b { color: #a11d22; }
+  #keyBox .diag { display: inline-block; margin-top: 8px; padding: 6px 12px;
+    background: #fff; border: 1px solid #c0392b; border-radius: 6px;
+    color: #a11d22; text-decoration: none; font-size: 12px; }
+  #keyBox .diag:hover { background: #c0392b; color: #fff; }
+  #keyBox .rowbtn { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+  #keyBox button { flex: 1; padding: 10px 0; border: none; border-radius: 6px;
+    background: #c0392b; color: #fff; font-size: 14px; cursor: pointer; }
+  #keyBox button:hover { background: #a11d22; }
+  #keyBox .small { font-size: 11px; color: #999; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<!-- ================= 左侧面板 ================= -->
+<div id="panel">
+  <div class="panel-head">
+    <h1>中国工农红军长征路线动态图</h1>
+    <button id="btnFold" title="收起/展开面板"
+      onclick="var p=document.getElementById('panel');var f=p.classList.toggle('folded');this.textContent=f?'▸':'▾';">▾</button>
+  </div>
+  <div class="sub">1934.10 — 1936.10 ｜ 三条路线按真实时间先后推进</div>
+
+  <div class="poem">
+    <b>《七律·长征》</b>（毛泽东，1935年10月）<br>
+    红军不怕远征难，万水千山只等闲。<br>
+    五岭逶迤腾细浪，乌蒙磅礴走泥丸。<br>
+    金沙水拍云崖暖，大渡桥横铁索寒。<br>
+    更喜岷山千里雪，三军过后尽开颜。
+  </div>
+
+  <!-- 播放控制 -->
+  <div id="ctrl">
+    <div class="row">
+      <button class="force-btn" id="fb-r1">中央红军</button>
+      <button class="force-btn" id="fb-r4">红四方面军</button>
+      <button class="force-btn" id="fb-r2">红二方面军</button>
+    </div>
+    <div class="fr-hint">三个按钮＝三条路线，点亮即显示，可单独看某一路。<b>中央红军即红一方面军</b>（长征主线，红色实线，1934.10 于都出发）。<br>快捷键：<b>空格</b> 播放/暂停，<b>← →</b> 逐月后退/前进，<b>Home</b> 回起点。</div>
+    <div class="row">
+      <button class="act" id="btnRun">▶ 播放</button>
+      <button class="act" id="btnReset" style="background:#eee;color:#666;">⟲ 重置</button>
+      <select id="selSpeed" title="播放速度">
+        <option value="0.5">慢速</option>
+        <option value="1" selected>常速</option>
+        <option value="2">快速</option>
+        <option value="4">极快</option>
+      </select>
+    </div>
+    <div id="timeLabel">1936年10月</div>
+    <div id="nowEvent">已显示全部路线。点"播放"从 1934年10月 开始重走。</div>
+    <input id="slider" type="range" min="0" max="1" step="0.02" value="1">
+  </div>
+
+  <div id="nodeList"></div><!-- 时间轴：由 JS 生成 -->
+  <div id="status"></div><!-- 运行状态：每步成功/失败都会写在这里 -->
+</div>
+
+<!-- 右上角按钮 -->
+<div id="toolbar">
+  <button id="btnFit">总览全路线</button>
+  <button id="btnLabel" class="active" title="显示/隐藏地图上的地名标注">地名标注</button>
+  <button id="btnSat" title="叠加真实卫星影像（山川地貌）">卫星影像</button>
+  <button id="btnTerrain" title="立体地形视角：卫星影像 + 62° 俯仰，看出山高谷深">3D地形</button>
+  <button id="btnKey" title="重新填写高德 Key">⚙ Key</button>
+</div>
+
+<!-- 轻提示条：切换图层时在这里提示一句，3 秒自动消失 -->
+<div id="toast"></div>
+
+<!-- 图例 -->
+<div id="legend">
+  <div><span class="lg-line" id="lg-r1"></span>中央红军（红一方面军）1934.10 出发</div>
+  <div><span class="lg-line" id="lg-r4"></span>红四方面军 1935.03 出发</div>
+  <div><span class="lg-line" id="lg-r2"></span>红二方面军（红二、六军团）1935.11 出发</div>
+  <div><span class="lg-dot" style="background:#c0392b"></span>关键节点（点击查看史实·小故事）</div>
+  <div class="note">红色实线是中央红军（长征主线）；紫、橙虚线为红四、红二方面军，为教学简化示意。节点时间依党史公开资料。</div>
+</div>
+
+<div id="footer">本文档由人工智能根据公开资料整理，仅用于教师备课、教学参考，请务必做好审核后使用。</div>
+
+<!-- ================= Key 配置弹窗 ================= -->
+<div id="keyMask">
+  <div id="keyBox">
+    <h2>先填写高德地图 Key 才能显示地图</h2>
+    <div class="tip">
+      申请入口：<span style="color:#a11d22">https://lbs.amap.com</span> → 控制台 → 应用管理 → 我的应用
+      → 创建新应用 → 添加 Key（服务平台务必选 <b>Web端(JS API)</b>）。
+      创建后平台会给两个值：<b>Key</b> 和 <b>安全密钥 securityJsCode</b>，两个都要填。
+    </div>
+    <label>1. Key（Key）</label>
+    <input id="inKey" type="text" placeholder="32 位字母数字" autocomplete="off">
+    <label>2. 安全密钥（securityJsCode）</label>
+    <input id="inCode" type="text" placeholder="32 位字母数字" autocomplete="off">
+    <label class="chk">
+      <input type="checkbox" id="chkStable">
+      使用稳定版 2.0 内核（默认用 2.1Beta 内核，才有真实的 3D 地形隆起；若地形显示异常，勾选此项可退回稳定版）
+    </label>
+    <div class="err" id="keyErr"></div>
+    <div class="rowbtn">
+      <button id="btnLoadKey">加载地图</button>
+      <button id="btnClearKey" style="background:#eee;color:#666;">清除已保存</button>
+    </div>
+    <div id="diagWrap"></div>
+    <div class="small">
+      （学生版已内置 Key，正常情况不会看到这个窗口。）两个值只保存在本机浏览器的 localStorage 中，不上传到任何服务器。
+      换电脑或换 Key 时，点右上角"⚙ Key"重新填写。
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==================================================================
+   中国工农红军长征路线动态图（1934—1936）
+   ------------------------------------------------------------------
+   设计要点：
+   1) 数据里给每个折点、每个节点都标了"月份序号"，动画就是让一个
+      时间游标沿着月份推进，路线随之生长、节点随之点亮；
+   2) 三支红军各自有出发时间，所以动画里会看到红一方面军先走，
+      1935年3月红四方面军出发，1935年11月红二方面军才出发；
+   3) 坐标书写一律用 [经度, 纬度] 数组（高德各版本通用），
+      不要用 new AMap.LatLng()，2.0 里该类可能不存在；
+   4) 每一步都单独 try/catch，任何一步失败都会写进左侧"运行状态"。
+   ================================================================== */
+
+/* ---------- 0. 时间工具 ----------
+   monthValue(年, 月) = 年*12 + (月-1)，相邻月份相差 1，便于做线性插值。
+   例：1934年10月 = 23217，1936年10月 = 23241。 */
+function M(y, mo) { return y * 12 + (mo - 1); }
+var T0 = M(1934, 10);   // 动画起点：1934年10月
+var T1 = M(1936, 10);   // 动画终点：1936年10月
+var SPAN = T1 - T0;     // 共 24 个月
+
+/* 把月份序号还原成"1935年5月"这样的文字（带小数时向下取整） */
+function monthLabel(v) {
+  var n = Math.floor(v);
+  return Math.floor(n / 12) + '年' + (n % 12 + 1) + '月';
+}
+
+/* ---------- 1. 三支红军的路线数据 ----------
+   path 里每个点：[经度, 纬度, 月份序号]
+   说明：二、四方面军为教学简化示意路线，不是逐日行军轨迹。 */
+var forces = [
+  {
+    id: 'r1', short: '中央红军', name: '中央红军（红一方面军）',
+    color: '#c0392b', weight: 7, visible: true,
+    path: [
+      [115.41,25.95,M(1934,10)],[114.90,25.30,M(1934,10)],                       // 于都出发
+      [113.30,25.30,M(1934,11)],[111.60,25.60,M(1934,11)],[110.90,25.80,M(1934,11)], // 湘江战役
+      [110.30,25.90,M(1934,12)],[109.78,26.16,M(1934,12)],[109.14,26.23,M(1934,12)],[108.60,26.60,M(1934,12)],
+      [107.60,27.10,M(1935,1)],[106.93,27.72,M(1935,1)],                          // 渡乌江 → 遵义
+      [106.60,27.90,M(1935,1)],[106.10,28.10,M(1935,1)],[105.99,28.29,M(1935,1)], // 土城（一渡赤水）
+      [105.40,28.00,M(1935,2)],[105.04,27.84,M(1935,2)],                          // 扎西
+      [105.60,28.10,M(1935,2)],[105.86,28.28,M(1935,2)],[106.40,28.10,M(1935,2)],[106.93,27.72,M(1935,2)],
+      [106.60,27.60,M(1935,3)],[106.19,27.85,M(1935,3)],[105.86,28.28,M(1935,3)],[106.20,27.80,M(1935,3)],
+      [106.63,26.65,M(1935,4)],[106.40,26.20,M(1935,4)],[105.90,26.00,M(1935,4)],[105.10,25.80,M(1935,4)],[104.20,25.70,M(1935,4)],
+      [103.30,25.60,M(1935,5)],[102.58,26.23,M(1935,5)],                          // 巧渡金沙江
+      [102.25,26.66,M(1935,5)],[102.26,27.90,M(1935,5)],[102.18,28.55,M(1935,5)],[102.33,28.87,M(1935,5)],
+      [102.36,29.23,M(1935,5)],[102.23,29.91,M(1935,5)],                          // 安顺场 → 泸定桥
+      [102.77,30.06,M(1935,6)],[102.72,30.72,M(1935,6)],[102.66,30.75,M(1935,6)],[102.71,30.93,M(1935,6)],
+      [102.36,30.99,M(1935,6)],[102.40,31.40,M(1935,6)],                          // 夹金山 → 懋功
+      [102.22,31.62,M(1935,7)],[102.90,31.95,M(1935,7)],[103.40,32.25,M(1935,7)], // 毛儿盖
+      [103.20,32.90,M(1935,8)],[102.96,33.30,M(1935,8)],                          // 过草地
+      [103.20,33.60,M(1935,9)],[103.45,33.98,M(1935,9)],[103.73,34.30,M(1935,9)], // 俄界 → 腊子口
+      [104.10,34.20,M(1935,9)],[104.38,34.04,M(1935,9)],                          // 哈达铺
+      [105.00,34.60,M(1935,10)],[105.60,35.00,M(1935,10)],[106.00,35.20,M(1935,10)],[106.30,35.35,M(1935,10)],
+      [106.90,35.90,M(1935,10)],[107.50,36.40,M(1935,10)],[108.18,36.93,M(1935,10)], // 六盘山 → 吴起镇
+      [107.40,36.50,M(1936,1)],                                                   // 陕北休整
+      [106.60,36.30,M(1936,5)],[105.90,35.90,M(1936,7)],[105.40,35.80,M(1936,9)], // 红军西征，策应红二、红四方面军北上
+      [105.08,35.69,M(1936,10)]                                                   // 会宁会师
+    ]
+  },
+  {
+    id: 'r4', short: '红四方面军', name: '红四方面军',
+    color: '#8e44ad', weight: 5, visible: true,
+    path: [
+      [105.94,31.98,M(1935,3)],[105.20,31.90,M(1935,4)],[104.50,31.80,M(1935,5)], // 苍溪强渡嘉陵江
+      [103.85,31.68,M(1935,5)],[103.20,31.40,M(1935,6)],[102.36,30.99,M(1935,6)], // 茂县 → 懋功会师
+      [101.89,30.88,M(1935,7)],                                                   // 丹巴（此后南下又北上）
+      [100.90,31.20,M(1936,2)],[99.99,31.62,M(1936,4)],                           // → 甘孜
+      [101.20,32.60,M(1936,7)],[103.00,33.40,M(1936,8)],[104.60,34.60,M(1936,9)],
+      [105.08,35.69,M(1936,10)]                                                   // 会宁会师
+    ]
+  },
+  {
+    id: 'r2', short: '红二方面军', name: '红二方面军（红二、红六军团）',
+    color: '#e67e22', weight: 5, visible: true,
+    path: [
+      [110.16,29.71,M(1935,11)],[109.40,28.90,M(1935,12)],                        // 桑植出发
+      [108.20,28.20,M(1936,1)],[106.90,27.60,M(1936,1)],[105.28,27.30,M(1936,2)],
+      [104.60,26.90,M(1936,3)],[103.79,25.90,M(1936,4)],[102.80,26.20,M(1936,4)],
+      [100.00,26.90,M(1936,5)],[99.70,27.83,M(1936,5)],                           // 石鼓渡金沙江 → 中甸
+      [100.00,29.50,M(1936,6)],[99.99,31.62,M(1936,7)],                           // → 甘孜会师
+      [101.20,32.60,M(1936,7)],[102.96,33.58,M(1936,8)],[104.38,34.04,M(1936,9)],
+      [105.10,34.80,M(1936,9)],[105.60,35.40,M(1936,10)],[105.85,35.75,M(1936,10)] // 将台堡会师
+    ]
+  }
+];
+
+/* ---------- 2. 关键节点数据 ----------
+   m：该节点对应的月份序号（决定动画中何时点亮）
+   forces：该节点属于哪几支部队（会师类节点属于两支部队）
+   flag：true 表示用旗子图标（出发、转折、会师等重要节点） */
+var nodes = [
+  {
+    name: "江西·于都（中央红军出发地）", short: "于都出发", time: "1934年10月",
+    lng: 115.41, lat: 25.95, m: M(1934,10), forces: ['r1'], flag: true,
+    fact: "1934年10月，由于第五次反“围剿”失利，中共中央和中央红军主力8.6万余人从江西于都等地集结出发，渡过于都河，开始长征。",
+    story: "<b>《十送红军》的渡口：</b>于都河上没有桥，百姓连夜拆下门板、床板搭成浮桥送红军过河。于都当时只有30多万人口，先后有6万多人参加红军。"
+  },
+  {
+    name: "湘江战役（广西全州—兴安）", short: "湘江战役", time: "1934年11月27日—12月1日",
+    lng: 110.90, lat: 25.80, m: M(1934,11), forces: ['r1'],
+    fact: "红军在湘江突破国民党军第四道封锁线，付出重大牺牲，中央红军由出发时的8.6万余人锐减到3万余人。",
+    story: "<b>半条被子：</b>1934年11月，红军经过湖南汝城县沙洲村，三名女红军借宿村民徐解秀家。临走时，她们把仅有的一床被子剪下一半留给老人。徐解秀后来说：“什么是共产党？共产党就是自己有一条被子，也要剪下半条给老百姓的人。”"
+  },
+  {
+    name: "通道转兵·黎平会议（湖南通道—贵州黎平）", short: "通道转兵·黎平会议", time: "1934年12月",
+    lng: 109.14, lat: 26.23, m: M(1934,12), forces: ['r1'],
+    fact: "湘江战役后，红军原定北上湘西与红二、红六军团会合，但国民党军已在湘西布下重兵等候。1934年12月，红军在湖南通道紧急改变行军方向，向敌人力量薄弱的贵州前进（通道转兵）；随后在贵州黎平召开中央政治局会议，正式决定放弃北上湘西的原定计划，改向黔北遵义地区进军。这是长征途中第一次重大战略转向，为遵义会议的召开创造了条件。"
+  },
+  {
+    name: "强渡乌江（贵州瓮安江界河渡口）", short: "强渡乌江", time: "1935年1月1日—3日",
+    lng: 107.34, lat: 27.30, m: M(1935,1), forces: ['r1'],
+    fact: "1935年1月，中央红军冒着严寒，用竹排、门板在江界河等渡口强渡乌江天险，突破国民党军苦心经营的乌江防线，1月7日攻占遵义。抢在敌人合围之前渡过乌江，为遵义会议的召开赢得了宝贵时间。"
+  },
+  {
+    name: "贵州·遵义（遵义会议）", short: "遵义会议", time: "1935年1月15日—17日",
+    lng: 106.93, lat: 27.72, m: M(1935,1), forces: ['r1'], flag: true,
+    fact: "中共中央在遵义召开政治局扩大会议（遵义会议），集中解决了当时具有决定意义的军事问题和组织问题，事实上确立了毛泽东在党中央和红军的领导地位。遵义会议是党的历史上一个生死攸关的转折点。"
+  },
+  {
+    name: "四渡赤水（川黔滇边界）", short: "四渡赤水", time: "1935年1月—3月",
+    lng: 105.99, lat: 28.29, m: M(1935,2), forces: ['r1'],
+    fact: "毛泽东指挥中央红军在川黔滇边界的赤水河流域声东击西、灵活机动，四次渡过赤水河，调动和迷惑敌人，跳出了几十万敌军的围追堵截。四渡赤水被视为军事指挥上“以少胜多、变被动为主动”的光辉范例。"
+  },
+  {
+    name: "红四方面军·强渡嘉陵江（四川苍溪）", short: "强渡嘉陵江", time: "1935年3月",
+    lng: 105.94, lat: 31.98, m: M(1935,3), forces: ['r4'], flag: true,
+    fact: "1935年3月，红四方面军为策应中央红军北上，在四川苍溪等地强渡嘉陵江，随后撤离川陕根据地，开始长征。"
+  },
+  {
+    name: "巧渡金沙江（云南皎平渡）", short: "巧渡金沙江", time: "1935年5月3日—9日",
+    lng: 102.58, lat: 26.23, m: M(1935,5), forces: ['r1'],
+    fact: "红军靠找到的7只小船，经过7天7夜，从皎平渡将3万余人全部渡过金沙江，取得了战略转移中具有决定意义的胜利，把追兵远远甩在南岸。"
+  },
+  {
+    name: "会理会议（四川会理）", short: "会理会议", time: "1935年5月12日",
+    lng: 102.24, lat: 26.65, m: M(1935,5), forces: ['r1'],
+    fact: "巧渡金沙江后，中央红军在四川会理召开政治局扩大会议（会理会议），批评了当时主张分散游击的错误意见，进一步巩固了遵义会议确立的领导格局，决定继续北上，同红四方面军会合，创建川陕甘根据地。"
+  },
+  {
+    name: "彝海结盟（四川冕宁）", short: "彝海结盟", time: "1935年5月22日",
+    lng: 102.33, lat: 28.87, m: M(1935,5), forces: ['r1'],
+    fact: "红军先遣队司令刘伯承同彝族果基家支首领小叶丹在冕宁县彝海边以水代酒、歃血为盟，结为兄弟。红军顺利通过彝区，为抢渡大渡河赢得了宝贵时间。",
+    story: "<b>一面旗帜：</b>小叶丹后来把“中国夷民红军沽鸡支队”的旗帜珍藏在背篓夹层里，嘱咐家人：“红军一定会回来。”这面旗帜如今收藏在军博馆里，成为民族团结的见证。"
+  },
+  {
+    name: "强渡大渡河（四川安顺场）", short: "强渡大渡河", time: "1935年5月24日—25日",
+    lng: 102.36, lat: 29.23, m: M(1935,5), forces: ['r1'],
+    fact: "红军先遣队夜袭安顺场渡口，17勇士乘小船强渡大渡河，控制了渡口。但船少水深流急，红军难以由此全部过河，于是决定夺取上游泸定桥。"
+  },
+  {
+    name: "飞夺泸定桥（四川泸定）", short: "飞夺泸定桥", time: "1935年5月29日",
+    lng: 102.23, lat: 29.91, m: M(1935,5), forces: ['r1'], flag: true,
+    fact: "红4团昼夜兼行240里山路，29日发起夺桥战斗，22位勇士攀着13根光溜溜的铁索，冒着枪弹夺下泸定桥，打开了红军北上的通道。",
+    story: "<b>240里一日赶到：</b>红4团一昼夜急行军240里（约120公里），雨天黑夜走山路，饿了嚼生米、渴了喝雨水，创下红军急行军纪录。今天走完这段路，汽车都要开两个多小时。"
+  },
+  {
+    name: "翻越夹金山（四川宝兴—小金）", short: "翻越夹金山", time: "1935年6月",
+    lng: 102.66, lat: 30.75, m: M(1935,6), forces: ['r1'],
+    fact: "红军翻越长征路上第一座大雪山——海拔4000多米的夹金山，空气稀薄、风雪交加，随后与红四方面军先头部队在达维镇会师。",
+    story: "<b>丰碑：</b>队伍在雪山上行进，将军看到一位老战士冻僵在雪地里，单薄破旧的衣服紧紧贴在身上。有人告诉将军：“他就是军需处长，把棉衣都发给了战士，自己没有留下。”将军含泪向这座晶莹的丰碑敬了一个军礼。（课文《丰碑》）"
+  },
+  {
+    name: "懋功会师（四川小金）", short: "懋功会师", time: "1935年6月",
+    lng: 102.36, lat: 30.99, m: M(1935,6), forces: ['r1','r4'],
+    fact: "1935年6月，中央红军（红一方面军）与红四方面军在四川懋功（今小金）地区会师，红军兵力会合，士气大振。"
+  },
+  {
+    name: "过松潘草地（四川若尔盖一带）", short: "过草地", time: "1935年8月下旬",
+    lng: 102.96, lat: 33.30, m: M(1935,8), forces: ['r1'],
+    fact: "红军穿过松潘草地——茫茫泥潭、气候变化无常，缺粮断炊，许多战士长眠于此。红军以惊人的毅力走出草地，突破敌人的封锁线，进入甘南。",
+    story: "<b>金色的鱼钩：</b>过草地时，炊事班长用缝衣针弯成鱼钩钓鱼给三个病号吃，自己却只嚼草根、吃剩下的鱼骨头。快走出草地时，老班长倒下了。斑驳的鱼钩记录着老班长舍己为人的崇高品质。（课文《金色的鱼钩》）"
+  },
+  {
+    name: "攻克腊子口（甘肃迭部）", short: "攻克腊子口", time: "1935年9月17日",
+    lng: 103.73, lat: 34.30, m: M(1935,9), forces: ['r1'],
+    fact: "红军夺取天险腊子口。这里两侧绝壁如刀劈斧削，隘口宽仅30多米。红军正面强攻与攀崖迂回相结合，一举突破，打开了北上甘陕的通道。"
+  },
+  {
+    name: "哈达铺（甘肃宕昌）", short: "哈达铺", time: "1935年9月",
+    lng: 104.38, lat: 34.04, m: M(1935,9), forces: ['r1'],
+    fact: "中央红军在哈达铺整编为陕甘支队，并从当地报纸上获悉陕北有红军和根据地，作出了把长征落脚点放在陕北的重大决策。"
+  },
+  {
+    name: "榜罗镇会议（甘肃通渭）", short: "榜罗镇会议", time: "1935年9月27日",
+    lng: 104.87, lat: 35.06, m: M(1935,9), forces: ['r1'],
+    fact: "中央红军在甘肃通渭县榜罗镇召开政治局常委会议，正式作出把红军长征的落脚点放在陕北、以陕北苏区作为领导全国革命大本营的决定。此前在哈达铺从报纸上得知陕北有红军和根据地，榜罗镇会议使这一重大决策最终确定下来。"
+  },
+  {
+    name: "翻越六盘山（宁夏泾源）", short: "翻越六盘山", time: "1935年10月7日",
+    lng: 106.30, lat: 35.35, m: M(1935,10), forces: ['r1'],
+    fact: "红军翻越长征路上最后一座大山——六盘山，翻越过程中在青石嘴战斗中获胜。毛泽东登上六盘山，写下《清平乐·六盘山》：“不到长城非好汉，屈指行程二万。”"
+  },
+  {
+    name: "吴起镇（陕西志丹）", short: "到达吴起镇", time: "1935年10月19日",
+    lng: 108.18, lat: 36.93, m: M(1935,10), forces: ['r1'], flag: true,
+    fact: "中央红军到达陕甘根据地吴起镇，与陕北红军会师。至此，中央红军（红一方面军）历时一年、纵横十余省、行程二万五千里的长征胜利结束。"
+  },
+  {
+    name: "直罗镇战役（陕西富县）", short: "直罗镇战役", time: "1935年11月",
+    lng: 108.98, lat: 35.83, m: M(1935,11), forces: ['r1'],
+    fact: "中央红军与陕北红军并肩作战，在陕西富县直罗镇全歼国民党军一个师又一个团，彻底打破了敌人对陕甘根据地的第三次“围剿”。毛泽东说，直罗镇战役“给党中央把全国革命大本营放在西北的任务，举行了一个奠基礼”。"
+  },
+  {
+    name: "红二、六军团出发（湖南桑植）", short: "桑植出发", time: "1935年11月",
+    lng: 110.16, lat: 29.71, m: M(1935,11), forces: ['r2'], flag: true,
+    fact: "1935年11月，红二、红六军团从湖南桑植出发，开始长征，转战湘中、贵州、云南等地。1936年7月与红四方面军会师后，正式组成红二方面军。"
+  },
+  {
+    name: "抢渡金沙江（云南丽江石鼓渡）", short: "石鼓渡金沙江", time: "1936年4月",
+    lng: 100.00, lat: 26.90, m: M(1936,4), forces: ['r2'],
+    fact: "1936年4月，红二、红六军团在云南丽江石鼓等渡口抢渡金沙江，摆脱追敌，随后翻越雪山向甘孜方向北上。"
+  },
+  {
+    name: "甘孜会师（四川甘孜）", short: "甘孜会师", time: "1936年7月",
+    lng: 99.99, lat: 31.62, m: M(1936,7), forces: ['r2','r4'], flag: true,
+    fact: "1936年7月，红二、红六军团到达四川甘孜，与红四方面军会师；随后正式组成红二方面军，两部分合成一路继续北上。"
+  },
+  {
+    name: "会宁会师（甘肃会宁）", short: "会宁会师", time: "1936年10月9日",
+    lng: 105.08, lat: 35.69, m: M(1936,10), forces: ['r1','r4'], flag: true,
+    fact: "1936年10月，红一方面军与红四方面军在甘肃会宁会师，两军相隔一年多的会合，为三大主力会师打下基础。"
+  },
+  {
+    name: "将台堡会师（宁夏西吉）", short: "将台堡会师", time: "1936年10月22日",
+    lng: 105.85, lat: 35.75, m: M(1936,10), forces: ['r1','r2'], flag: true,
+    fact: "1936年10月22日，红一方面军与红二方面军在宁夏西吉将台堡会师。至此，红军三大主力会师，宣告红军长征胜利结束。"
+  }
+];
+
+/* ---------- 2.1 地图上显示的地名标注 ----------
+   左边是节点简称，右边是地图上贴出来的地名。想改地图上写什么字，改这里即可
+   （例如把"湘江"改成"湘江（全州）"）。 */
+var PLACE = {
+  '于都出发': '于都',        '湘江战役': '湘江',        '通道转兵·黎平会议': '通道·黎平',
+  '强渡乌江': '乌江',        '遵义会议': '遵义',        '四渡赤水': '赤水河',
+  '强渡嘉陵江': '苍溪',      '巧渡金沙江': '皎平渡',    '会理会议': '会理',
+  '彝海结盟': '彝海',        '强渡大渡河': '安顺场',    '飞夺泸定桥': '泸定',
+  '翻越夹金山': '夹金山',    '懋功会师': '懋功',        '过草地': '松潘草地',
+  '攻克腊子口': '腊子口',    '哈达铺': '哈达铺',        '榜罗镇会议': '榜罗镇',
+  '翻越六盘山': '六盘山',    '到达吴起镇': '吴起镇',    '直罗镇战役': '直罗镇',
+  '桑植出发': '桑植',        '石鼓渡金沙江': '石鼓渡',  '甘孜会师': '甘孜',
+  '会宁会师': '会宁',        '将台堡会师': '将台堡'
+};
+nodes.forEach(function (n) { n.place = PLACE[n.short] || n.short; });
+
+/* ==================================================================
+   坐标说明：折线 path、Marker position 一律直接传 [经度, 纬度] 数组，
+   高德 2.0 / 2.1Beta 均原生支持，无需 new AMap.LngLat() 包装。
+   ================================================================== */
+
+/* ==================================================================
+   运行状态显示：把每一步的结果写到左侧面板，便于一眼定位问题
+   ================================================================== */
+function showStatus(steps) {
+  var box = document.getElementById('status');
+  if (!box) { return; }
+  var html = '', hasBad = false;
+  steps.forEach(function (s) {
+    if (!s.ok) { hasBad = true; }
+    html += '<div class="' + (s.ok ? 'ok' : 'bad') + '">' + (s.ok ? '✓ ' : '✗ ') + s.t + '</div>';
+  });
+  if (!hasBad) { html += '<div>以上步骤均正常。若视野里看不到路线，点右上角“总览全路线”。</div>'; }
+  box.innerHTML = html;
+}
+
+/* ==================================================================
+   轻提示条：切换图层/地形时提示一句，3 秒自动消失。
+   课堂使用时不希望被 alert 弹窗打断（弹窗还得点"确定"）。
+   ================================================================== */
+var toastTimer = null;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  if (!el) { return; }
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) { clearTimeout(toastTimer); }
+  toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3200);
+}
+
+/* 环境自检：3D 倾斜与地形隆起都依赖 WebGL，不可用时只能退成 2D 平面图 */
+function webglSupported() {
+  try {
+    var cv = document.createElement('canvas');
+    return !!(cv.getContext('webgl') || cv.getContext('experimental-webgl') || cv.getContext('webgl2'));
+  } catch (e) { return false; }
+}
+
+/* 内核版本信息（由页面底部的加载器写入，initMap 读取后写进"运行状态"）。
+   terrainSupport 是"是否具备真实 3D 地形隆起能力"的开关，
+   只有 v2.1Beta 内核才有；v2.0 里旧的 AMap.TileLayer.Terrain 已不存在。 */
+var sdkVer = '';
+var terrainSupport = false;
+
+/* ==================================================================
+   地图初始化（SDK 加载成功后才调用）
+   ================================================================== */
+function initMap() {
+
+var steps = [];
+function logStep(text, ok) { steps.push({ t: text, ok: ok !== false }); }
+
+/* ---------- 3. 运行环境自检：3D 倾斜与地形隆起都依赖 WebGL ---------- */
+var glOK = webglSupported();
+if (glOK) {
+  logStep('渲染环境：WebGL 可用，支持 3D 倾斜' + (terrainSupport ? '与地形隆起' : ''));
+} else {
+  logStep('渲染环境：浏览器未启用 WebGL，3D 倾斜与地形都无法显示 —— 请开启浏览器“硬件加速”或改用 Chrome / Edge', false);
+}
+logStep('地图内核：高德 JS API ' + (sdkVer || '未知') +
+        (terrainSupport ? '（含 3D 地形）' : '（无地形隆起，改用倾斜视角近似）'));
+
+/* ---------- 3.1 先建左侧时间轴（不依赖地图，保证史实一定可见） ---------- */
+var listEl = document.getElementById('nodeList');
+var sortedNodes = nodes.slice().sort(function (a, b) { return a.m - b.m; }); // 按时间排序显示
+sortedNodes.forEach(function (n) {
+  var f = forces.filter(function (x) { return n.forces.indexOf(x.id) >= 0; });
+  var dot = f.length ? 'style="background:' + f[0].color + '"' : '';
+  var div = document.createElement('div');
+  div.className = 'node-item wait';
+  div.innerHTML = '<span class="badge" ' + dot + '>' + f.map(function (x) { return x.short; }).join('·') + '</span>'
+    + '<b>' + n.short + '</b><span class="t">' + n.time + '</span>';
+  div.onclick = function () { openInfo(n); };
+  n.listEl = div;
+  listEl.appendChild(div);
+});
+logStep('史实时间轴：已生成 ' + nodes.length + ' 条');
+
+/* ---------- 4. 创建 3D 地图 ----------
+   注意：高德 2.0 起，"地形"不再是图层（旧的 AMap.TileLayer.Terrain 已移除），
+   开启真实地形隆起的唯一方式是：用 v2.1Beta 内核 + 初始化时传 terrain: true。
+   2.0 内核下 terrain 参数会被忽略，地图仍是 3D 矢量图（可倾斜、可旋转）。 */
+var map = null;
+try {
+  var mapOpt = {
+    viewMode: '3D',        // 3D 模式：可以俯仰倾斜、旋转
+    pitch: 50,             // 初始俯仰角：一眼能看出山地立体感
+    rotateEnable: true,    // 允许旋转（鼠标右键拖动，或 Ctrl + 左键画圈）
+    pitchEnable: true,     // 允许倾斜（鼠标右键上下拖动）
+    zoom: 5,
+    center: [105.5, 30.5],
+    showLabel: true
+  };
+  if (terrainSupport) { mapOpt.terrain = true; }   // 2.1Beta：开真实地形隆起
+  map = new AMap.Map('container', mapOpt);
+  logStep('地图：已创建' + (terrainSupport ? '，并已开启 3D 地形隆起' : ''));
+} catch (e) {
+  logStep('地图创建失败：' + e.message, false);
+  showStatus(steps);
+  return;
+}
+
+/* ---------- 5. 画出三条路线（初始为空线，动画中逐段生长） ---------- */
+try {
+  forces.forEach(function (f) {
+    f.line = new AMap.Polyline({
+      path: [],
+      strokeColor: f.color, strokeWeight: f.weight, strokeOpacity: 0.95,
+      lineJoin: 'round', cursor: 'pointer',
+      zIndex: f.id === 'r1' ? 60 : 50   // 中央红军（主线）画在最上层，避免被虚线压住
+    });
+    map.add(f.line);
+    // 线头小圆点：表示这支部队"当前走到哪里"
+    f.head = new AMap.Marker({
+      position: [f.path[0][0], f.path[0][1]],
+      content: '<div class="head-dot" style="background:' + f.color + '"></div>',
+      anchor: 'center', zIndex: 210
+    });
+    map.add(f.head);
+  });
+  logStep('长征路线：已创建 3 条（共 ' + forces.reduce(function (s, f) { return s + f.path.length; }, 0) + ' 个折点）');
+} catch (e) {
+  logStep('路线创建失败：' + e.message, false);
+}
+
+/* ---------- 6. 创建关键节点标记（先不显示，动画推进到时再点亮） ---------- */
+var infoWindow = null;
+var labelOn = true;            // 是否显示地图上的地名标注（右上角按钮可切换）
+try {
+  infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -28) });
+  nodes.forEach(function (n) {
+    var color = forces[0].color;
+    forces.forEach(function (f) { if (n.forces.indexOf(f.id) >= 0 && f.id !== 'r1') { color = f.color; } });
+    var html = n.flag
+      ? '<div class="node-flag">🚩</div>'
+      : '<div class="node-marker" style="background:' + color + ';width:16px;height:16px"></div>';
+    n.marker = new AMap.Marker({ position: [n.lng, n.lat], content: html, anchor: 'center', zIndex: n.flag ? 130 : 120 });
+    n.marker.on('click', function () { openInfo(n); });
+
+    /* 地名标注：锚点设为"左中"，坐标点落在标签左侧中间；
+       CSS 里再用 margin-left:12px 把文字推到圆点右边，不遮挡圆点 */
+    n.label = new AMap.Marker({
+      position: [n.lng, n.lat], anchor: 'middle-left', zIndex: 140,
+      content: '<div class="node-label" title="' + n.name + '" style="border-left-color:' + color + '">'
+        + n.place + '</div>'
+    });
+    n.label.on('click', function () { openInfo(n); });
+    n.revealed = false;
+  });
+  logStep('关键节点：已创建 ' + nodes.length + ' 个（随动画逐个点亮）');
+  logStep('地名标注：已生成 ' + nodes.length + ' 个（右上角"地名标注"可开关）');
+} catch (e) {
+  logStep('节点创建失败：' + e.message, false);
+}
+
+/* ---------- 7. 点节点或时间轴 → 弹出史实与小故事 ---------- */
+function openInfo(n) {
+  if (!map || !infoWindow) {          // 地图不可用时，至少把史实读出来
+    alert(n.name + '（' + n.time + '）\n\n' + n.fact + (n.story ? '\n\n' + n.story.replace(/<[^>]+>/g, '') : ''));
+    return;
+  }
+  var html = '<div class="iw-box">'
+    + '<h3>' + n.name + '</h3>'
+    + '<div class="time">⏱ ' + n.time + '</div>'
+    + '<div class="fact">' + n.fact + '</div>'
+    + (n.story ? '<div class="story">' + n.story + '</div>' : '')
+    + '</div>';
+  infoWindow.setContent(html);
+  infoWindow.open(map, [n.lng, n.lat]);
+}
+
+/* ---------- 8. 动画核心：把时间游标 v 渲染成"当时的战局" ----------
+   ① 每条路线只画到 v 对应的位置（最后两点之间做线性插值，线头平滑推进）；
+   ② 线头小圆点跟到最前端；
+   ③ 时间已到的节点自动点亮，时间未到的保持隐藏。 */
+function visibleForces() { return forces.filter(function (f) { return f.visible; }); }
+
+function anyForceVisible(ids) {
+  for (var i = 0; i < ids.length; i++) {
+    var f = forces.filter(function (x) { return x.id === ids[i]; })[0];
+    if (f && f.visible) { return true; }
+  }
+  return false;
+}
+
+function render(v) {
+  v = Math.max(T0, Math.min(T1, v));
+  ui.progress = v;
+
+  forces.forEach(function (f) {
+    if (!f.line) { return; }
+    var pts = [], lastM = null, prev = null, nxt = null;
+    for (var i = 0; i < f.path.length; i++) {
+      var p = f.path[i];
+      if (p[2] <= v) { pts.push([p[0], p[1]]); lastM = p[2]; prev = p; }
+      else { nxt = p; break; }
+    }
+    // 在"上一个已到点"和"下一个未到点"之间插值，让线头随时间平滑前进
+    if (nxt && prev && nxt[2] > lastM) {
+      var k = (v - lastM) / (nxt[2] - lastM);
+      pts.push([prev[0] + (nxt[0] - prev[0]) * k, prev[1] + (nxt[1] - prev[1]) * k]);
+    }
+    // 这条路线在该时间点还没出发（路径为空）：只隐藏，不传空数组给 setPath
+    if (!pts.length) {
+      f.line.hide();
+      if (f.head) { f.head.hide(); }
+      return;
+    }
+    if (pts.length === 1) { pts.push(pts[0]); }   // 单点画不出线，补一个重复点
+    f.line.setPath(pts);
+    f.visible ? f.line.show() : f.line.hide();
+    if (f.head) {
+      f.head.setPosition(pts[pts.length - 1]);
+      f.visible ? f.head.show() : f.head.hide();
+    }
+  });
+
+  // 节点：时间到了就点亮（并把所属部队的可见性算进去）
+  nodes.forEach(function (n) {
+    if (!n.marker) { return; }
+    var shouldShow = n.m <= v;
+    if (shouldShow && !n.revealed) {
+      n.revealed = true;
+      map.add(n.marker);
+      if (n.label) { map.add(n.label); }        // 地名标注跟着节点一起出现
+    }
+    var visNode = shouldShow && anyForceVisible(n.forces);
+    if (visNode) { n.marker.show(); } else { n.marker.hide(); }
+    if (n.label) { (visNode && labelOn) ? n.label.show() : n.label.hide(); }
+    if (n.listEl) {
+      n.listEl.className = 'node-item' + (n.m <= v ? '' : ' wait');
+    }
+  });
+
+  // 控制区文字：当前时间 + 最近经过的事件
+  // 注意用 >= 而不是 >：同一月份有多个事件时（如1936年10月的会宁、将台堡会师），
+  // 取数组里靠后的那一个，也就是时间上更晚发生的那个。
+  var latest = null;
+  nodes.forEach(function (n) {
+    if (n.m <= v && anyForceVisible(n.forces)) {
+      if (!latest || n.m >= latest.m) { latest = n; }
+    }
+  });
+  // 内容没变就不碰 DOM：播放时每帧都经过这里，减少无谓的重排
+  var labelText = monthLabel(v);
+  if (labelText !== lastLabel) { lastLabel = labelText; elTime.textContent = labelText; }
+  var evText = latest
+    ? '已到：' + latest.short + '（' + latest.time + '）'
+    : '尚未出发——红军正在集结准备转移';
+  if (evText !== lastEvent) { lastEvent = evText; elEvent.textContent = evText; }
+  // 用户正在拖滑块时不回写，避免和手指/鼠标打架
+  if (elSlider && document.activeElement !== elSlider) { elSlider.value = String(v); }
+  // 时间轴高亮：把"当前事件"的条目点亮
+  nodes.forEach(function (n) { if (n.listEl) { n.listEl.classList.remove('now'); } });
+  if (latest && latest.listEl) { latest.listEl.classList.add('now'); }
+}
+
+/* ---------- 9. 播放控制 ---------- */
+/* 缓存常用 DOM 引用：render() 播放时每秒跑 60 次，避免反复 getElementById */
+var ui = { progress: T1, playing: false, timer: null, speed: 1 };
+var elTime   = document.getElementById('timeLabel');
+var elEvent  = document.getElementById('nowEvent');
+var elSlider = document.getElementById('slider');
+var elBtnRun = document.getElementById('btnRun');
+var lastLabel = '', lastEvent = '';
+
+function stopPlay(finished) {
+  ui.playing = false;
+  if (ui.timer) { cancelAnimationFrame(ui.timer); ui.timer = null; }
+  elBtnRun.textContent = '▶ 播放';
+  if (finished) { elEvent.textContent = '长征胜利结束——红军三大主力会师。'; lastEvent = elEvent.textContent; }
+}
+
+/* 用 requestAnimationFrame 驱动：跟随屏幕刷新率，画面更顺滑；
+   切到后台时浏览器自动暂停，回来时 dt 有上限，进度不会突然跳变 */
+function startPlay() {
+  if (ui.playing) { stopPlay(false); return; }              // 再点一次 = 暂停
+  if (ui.progress >= T1 - 0.01) { resetTo(T0); }            // 已播完 → 从头再来
+  try { fitAll(); } catch (e) {}                            // 播放前先把整条舞台框进视野
+  ui.playing = true;
+  elBtnRun.textContent = '⏸ 暂停';
+  var last = performance.now();
+  var tick = function (now) {
+    if (!ui.playing) { return; }
+    var dt = Math.min((now - last) / 1000, 0.12); last = now;   // 秒，封顶 0.12s 防跳变
+    var v = ui.progress + dt * ui.speed;                        // speed 单位：月/秒
+    if (v >= T1) { render(T1); stopPlay(true); return; }
+    render(v);
+    ui.timer = requestAnimationFrame(tick);
+  };
+  ui.timer = requestAnimationFrame(tick);
+}
+
+/* 回到某个时间点：节点全部收回，重新按时间点亮 */
+function resetTo(v) {
+  stopPlay(false);
+  nodes.forEach(function (n) {
+    if (n.marker && n.revealed) {
+      map.remove(n.marker);
+      if (n.label) { map.remove(n.label); }     // 地名标注与节点一起收回
+      n.revealed = false;
+    }
+  });
+  render(v);
+}
+
+/* 跳到任意时间：往回跳时把"还没到"的已点亮节点收回，保证画面与时间一致 */
+function seekTo(v) {
+  stopPlay(false);
+  if (v < ui.progress) {
+    nodes.forEach(function (n) {
+      if (n.marker && n.revealed && n.m > v) {
+        map.remove(n.marker);
+        if (n.label) { map.remove(n.label); }
+        n.revealed = false;
+      }
+    });
+  }
+  render(v);
+}
+
+elBtnRun.onclick = startPlay;
+document.getElementById('btnReset').onclick = function () { resetTo(T0); };
+document.getElementById('selSpeed').onchange = function () { ui.speed = parseFloat(this.value) || 1; };
+elSlider.oninput = function () { seekTo(parseFloat(this.value)); };
+
+/* 键盘快捷键：空格 播放/暂停，← → 逐月后退/前进，Home 回起点，End 到终点 */
+document.addEventListener('keydown', function (e) {
+  var tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }  // 打字时不抢按键
+  if (e.code === 'Space') { e.preventDefault(); startPlay(); }
+  else if (e.key === 'ArrowLeft')  { seekTo(Math.round(ui.progress) - 1); }
+  else if (e.key === 'ArrowRight') { seekTo(Math.round(ui.progress) + 1); }
+  else if (e.key === 'Home') { resetTo(T0); }
+  else if (e.key === 'End')  { stopPlay(false); render(T1); }
+});
+
+/* 时间轴范围：用滑块的最小/最大值绑定月份序号 */
+elSlider.min = String(T0); elSlider.max = String(T1); elSlider.step = '0.02'; elSlider.value = String(T1);
+
+/* ---------- 10. 三支红军的显示开关 ---------- */
+function paintForceButtons() {
+  forces.forEach(function (f) {
+    var b = document.getElementById('fb-' + f.id);
+    if (!b) { return; }
+    b.classList.toggle('on', f.visible);
+    b.style.background = f.visible ? f.color : '#fff';
+  });
+}
+forces.forEach(function (f) {
+  var b = document.getElementById('fb-' + f.id);
+  if (b) {
+    b.onclick = function () {
+      f.visible = !f.visible;
+      if (f.line) { f.visible ? f.line.show() : f.line.hide(); }
+      if (f.head) { f.visible ? f.head.show() : f.head.hide(); }
+      paintForceButtons();
+      render(ui.progress);
+    };
+  }
+  // 图例上的线段颜色
+  var lg = document.getElementById('lg-' + f.id);
+  if (lg) { lg.style.borderTop = '4px ' + (f.id === 'r1' ? 'solid' : 'dashed') + ' ' + f.color; }
+});
+paintForceButtons();
+
+/* ---------- 11. 视野：自动框住三条路线；一键总览 ---------- */
+function fitAll() {
+  var lines = visibleForces().map(function (f) { return f.line; }).filter(function (x) { return !!x; });
+  if (lines.length) { map.setFitView(lines, false, [60, 60, 60, 380]); }
+}
+if (map) { map.on('complete', function () { try { fitAll(); } catch (e) {} }); }
+document.getElementById('btnFit').onclick = function () { try { fitAll(); } catch (e) {} };
+
+/* ---------- 11.1 地名标注开关（26 个标签同时显示时画面会密，可一键收起） ---------- */
+document.getElementById('btnLabel').onclick = function () {
+  labelOn = !labelOn;
+  this.classList.toggle('active', labelOn);
+  render(ui.progress);
+};
+
+/* ---------- 12. 图层与视角：卫星影像 / 3D 地形 ----------
+   【这个坑踩过一次，写清楚免得重踩】
+   旧版的 AMap.TileLayer.Terrain 在 2.0 内核里已经不存在，所以以前
+   点"3D地形"必然报错、又被 catch 吞掉——表现就是"只能看卫星影像"。
+   正确做法是换用 v2.1Beta 内核 + 初始化 Map 时传 terrain: true（见第 4 步）。
+   现在这个按钮干两件事：叠上卫星影像 + 把俯仰角拉到 62°，
+   让山高谷深在斜视下真正"立"起来。 */
+var satLayer = null, satOn = false;
+
+function setSatellite(on) {
+  try {
+    if (!satLayer) { satLayer = new AMap.TileLayer.Satellite({}); }
+    satOn = on;
+    satLayer.setMap(on ? map : null);
+    var b = document.getElementById('btnSat');
+    if (b) { b.classList.toggle('active', on); }
+    return true;
+  } catch (e) { toast('卫星图层不可用：' + e.message); return false; }
+}
+
+document.getElementById('btnSat').onclick = function () {
+  if (setSatellite(!satOn)) { toast(satOn ? '已叠加卫星影像' : '已关闭卫星影像'); }
+};
+
+/* 调俯仰角：优先用官方 setStatus，取不到时退回 setPitch */
+function setPitchTo(v) {
+  if (typeof map.setStatus === 'function') { map.setStatus({ pitch: v }); }
+  else if (typeof map.setPitch === 'function') { map.setPitch(v); }
+}
+
+var terrain3D = false;
+document.getElementById('btnTerrain').onclick = function () {
+  terrain3D = !terrain3D;
+  this.classList.toggle('active', terrain3D);
+  try {
+    if (terrain3D) {
+      if (!satOn) { setSatellite(true); }   // 地形起伏配卫星影像看最直观，自动打开
+      setPitchTo(62);
+      toast(terrainSupport
+        ? '3D 地形已开启：卫星影像 + 62° 俯仰，山高谷深一眼可见；按住鼠标右键拖动可旋转、上下拖动可再调倾角'
+        : '已切到 3D 倾斜视角。当前为 2.0 内核，无地形隆起；如需真实地形，请在"⚙ Key"里取消勾选稳定版内核后重新加载');
+    } else {
+      setPitchTo(50);
+      toast('已回到常规倾斜视角');
+    }
+  } catch (e) { toast('切换地形视角失败：' + e.message); }
+};
+
+/* ---------- 13. 初始画面：先显示 1936年10月 的完整路线全景 ---------- */
+render(T1);
+paintForceButtons();
+showStatus(steps);
+
+} /* ===================== initMap() 结束 ===================== */
+</script>
+
+<script>
+/* ==================================================================
+   Key 引导与 SDK 动态加载（本页不在代码里内置任何 Key）
+   ① 读本机浏览器已保存的 Key；② 没有就弹窗请使用者填写；
+   ③ 填好后动态插入高德 JS API，加载成功再执行 initMap()。
+   内核版本：默认 v2.1Beta（有真实 3D 地形隆起），失败自动退回 v2.0。
+   ================================================================== */
+var LS_KEY  = 'lcz_amap_key';       // localStorage 中保存 Key 的键名
+var LS_CODE = 'lcz_amap_js_code';   // localStorage 中保存安全密钥的键名
+var LS_STABLE = 'lcz_amap_stable';  // 是否强制使用稳定版 2.0 内核
+var sdkLoaded = false;              // SDK 是否已成功加载（sdkVer / terrainSupport 见页面第一段脚本）
+
+function getSaved() {
+  try {
+    return { key: localStorage.getItem(LS_KEY) || '', code: localStorage.getItem(LS_CODE) || '' };
+  } catch (e) { return { key: '', code: '' }; }
+}
+function saveCfg(k, c) {
+  try { localStorage.setItem(LS_KEY, k); localStorage.setItem(LS_CODE, c); } catch (e) {}
+}
+
+function setErr(html) { document.getElementById('keyErr').innerHTML = html; }
+
+function showMask(msg) {
+  document.getElementById('keyMask').classList.add('show');
+  setErr(msg || '');
+  var s = getSaved();
+  document.getElementById('inKey').value  = s.key;
+  document.getElementById('inCode').value = s.code;
+}
+function hideMask() { document.getElementById('keyMask').classList.remove('show'); }
+
+/* 诊断链接：直接在浏览器请求一次地图 SDK 地址，
+   能看到成段 JS 代码=网络通（问题在 Key）；打不开=网络被拦 */
+function showDiag(url) {
+  document.getElementById('diagWrap').innerHTML =
+    '<a class="diag" href="' + url + '" target="_blank" rel="noopener">打开诊断链接（新标签页）</a>';
+}
+
+/* 提交前格式体检：把常见手滑挡住 */
+function checkFormat(k, c) {
+  if (/[^\x21-\x7e]/.test(k) || /[^\x21-\x7e]/.test(c)) {
+    return 'Key 或安全密钥里含有中文、空格、换行等异常字符，请重新复制（只保留字母和数字）。';
+  }
+  if (k.length !== 32 || c.length !== 32) {
+    return '提示：Key 与安全密钥通常都是 32 位字母数字。你填的 Key <b>' + k.length +
+           '</b> 位、安全密钥 <b>' + c.length + '</b> 位，可能没复制完整，也可能两栏填反了。可先继续尝试。';
+  }
+  return '';
+}
+
+/* 动态加载高德 JS API：必须先设安全密钥，再插 SDK。
+   版本策略：优先 v2.1Beta —— 只有它带"真实 3D 地形隆起"能力
+   （2.0 内核里旧的 AMap.TileLayer.Terrain 已被移除，这就是以前
+   "只能看卫星影像、3D 打不开"的根本原因）；若 2.1Beta 取不到，
+   自动退回 v2.0 稳定内核（仍可 3D 倾斜、卫星影像，只是没有地形隆起）。
+   弹窗里勾选"稳定版 2.0"可强制只用 2.0。 */
+var LS_VER = 'lcz_amap_ver';   // 记住上次成功加载的内核版本，便于排查
+
+function loadAMapSDK(key, code) {
+  window._AMapSecurityConfig = { securityJsCode: code };   // 第一步：安全密钥
+
+  var forceStable = false;
+  try { forceStable = !!document.getElementById('chkStable').checked; } catch (e) {}
+
+  var q = '&key=' + encodeURIComponent(key);
+  var plan = forceStable
+    ? [{ v: '2.0', url: 'https://webapi.amap.com/maps?v=2.0' + q }]
+    : [{ v: '2.1Beta', url: 'https://webapi.amap.com/maps?v=2.1Beta' + q },
+       { v: '2.0', url: 'https://webapi.amap.com/maps?v=2.0' + q }];
+
+  var idx = 0, done = false;
+  var timer = setTimeout(function () {
+    if (!done) {
+      setErr('8 秒内没有取到高德地图脚本，通常是网络访问不到 webapi.amap.com。可换手机热点试一次，或先点诊断链接确认。');
+      showDiag(plan[Math.min(idx, plan.length - 1)].url);
+    }
+  }, 8000);
+
+  function next() {
+    if (idx >= plan.length) {          // 两个版本都取不到
+      done = true; clearTimeout(timer);
+      setErr('未能取到高德地图脚本（SDK 加载失败）。按顺序排查：' +
+             '<br>① <b>网络拿不到</b> webapi.amap.com（校园网、代理、拦截插件常拦）；' +
+             '<br>② <b>Key 无效</b>，服务器返回 4xx 错误状态（抄错、复制成了安全密钥）；' +
+             '<br>③ <b>Key 类型不对</b>，必须是"Web端(JS API)"。' +
+             '<br>先点诊断链接：能看到成段 JS=网络通、问题在 Key；打不开=网络被拦。');
+      showDiag(plan[plan.length - 1].url);
+      return;
+    }
+    var t = plan[idx++];
+    console.log('[长征地图] 正在请求：', t.url);
+    var s = document.createElement('script');   // 第二步：插入 SDK
+    var handled = false;
+    s.src = t.url;
+    s.onload = function () {                    // 第三步：初始化地图
+      if (handled) { return; } handled = true;
+      if (typeof window.AMap === 'undefined') { next(); return; }   // 脚本到手但内核没挂上，换下一版本
+      sdkLoaded = true; done = true;
+      sdkVer = t.v;
+      terrainSupport = (t.v === '2.1Beta');     // 只有 2.1Beta 才有地形隆起
+      try { localStorage.setItem(LS_VER, t.v); } catch (e) {}
+      clearTimeout(timer);
+      try {
+        initMap(); hideMask();
+        document.getElementById('diagWrap').innerHTML = '';
+      } catch (e) {
+        setErr('SDK 已加载，但地图初始化失败：' + e.message +
+               '<br>常见原因：Key 的平台类型不是"Web端(JS API)"，或安全密钥与这个 Key 不配对。');
+      }
+    };
+    s.onerror = function () {                   // 取不到这个版本 → 试下一个
+      if (handled) { return; } handled = true;
+      next();
+    };
+    document.head.appendChild(s);
+  }
+  next();
+}
+
+document.getElementById('btnLoadKey').onclick = function () {
+  var k = document.getElementById('inKey').value.trim();
+  var c = document.getElementById('inCode').value.trim();
+  if (!k || !c) { setErr('两个值都要填：Key 和安全密钥。'); return; }
+  setErr(checkFormat(k, c));
+  document.getElementById('diagWrap').innerHTML = '';
+  saveCfg(k, c);
+  try { localStorage.setItem(LS_STABLE, document.getElementById('chkStable').checked ? '1' : ''); } catch (e) {}
+  if (sdkLoaded) { location.reload(); } else { loadAMapSDK(k, c); }
+};
+
+document.getElementById('btnClearKey').onclick = function () {
+  try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_CODE); } catch (e) {}
+  document.getElementById('inKey').value = '';
+  document.getElementById('inCode').value = '';
+  document.getElementById('diagWrap').innerHTML = '';
+  setErr('已清除本机保存的 Key，可重新填写。');
+};
+
+document.getElementById('btnKey').onclick = function () { showMask(''); };
+
+(function boot() {
+  // 回填"稳定版内核"选项，让上次的选择持续生效
+  try { document.getElementById('chkStable').checked = (localStorage.getItem(LS_STABLE) === '1'); } catch (e) {}
+
+  /* ---- 发给学生版：优先使用文件顶部 LCZ_CONFIG 里内置的 Key ----
+     学生双击打开即可看地图，无需填写任何东西。
+     若配置块存在但没填（老师忘填了），给一句可操作的话，而不是让学生卡住。 */
+  var builtin = window.LCZ_CONFIG;
+  if (builtin) {
+    var bk = String(builtin.key  || '').trim();
+    var bc = String(builtin.code || '').trim();
+    if (bk && bc) {
+      try { var kb = document.getElementById('btnKey'); if (kb) { kb.style.display = 'none'; } } catch (e) {}
+      loadAMapSDK(bk, bc);
+      return;
+    }
+    showMask('这份文件还没有配置好地图 Key。<br>如果你是学生：请把本页截图发给老师。' +
+             '<br>如果你是老师：请用记事本打开这个文件，把顶部的 LCZ_CONFIG 两处填上再保存。');
+    return;
+  }
+
+  /* ---- 自己用的版本：读本机浏览器里保存过的 Key ---- */
+  var cfg = getSaved();
+  if (cfg.key && cfg.code) { loadAMapSDK(cfg.key, cfg.code); } else { showMask(''); }
+})();
+</script>
+</body>
+</html>
